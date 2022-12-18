@@ -34,7 +34,7 @@
 #endif
 
 #define DHTTYPE DHT11
-#define DHTPIN 9
+#define DHTPIN 6
 
 #define AVG_COUNT 10
 #define INTERVAL 100
@@ -43,24 +43,35 @@
 #define MIN_VAL 12
 #define STEP 1.5
 
+#define P10 7
+#define P25 A5
+#define P35 A4
+#define P50 A3
+#define P65 A2
+#define P80 A1
+#define P100 A0
+ 
+
 RH_ASK driver;
 DHT dht(DHTPIN, DHTTYPE);
 
 const int TRIG = 7; //PD7 - D7
 const int ECHO = 8; //PB0 - D8
+boolean sensorEnabled = false;
 
 void setup() {
-  pinMode(TRIG, OUTPUT);
-  pinMode(ECHO, INPUT);
-  pinMode(LED_BUILTIN, OUTPUT);
-
+  if(sensorEnabled){
+    pinMode(TRIG, OUTPUT);
+    pinMode(ECHO, INPUT);
+    pinMode(LED_BUILTIN, OUTPUT);
+  }
 
   #ifdef RH_HAVE_SERIAL
     Serial.begin(9600);   // Debugging only
   #endif
       if (!driver.init())
   #ifdef RH_HAVE_SERIAL
-         Serial.println("INIT-FAILED");
+         Serial.println("TX-UNIT:INIT-FAILED!");
   #else
     ;
   #endif
@@ -79,8 +90,18 @@ void setup() {
   delay(250);
   digitalWrite(LED_BUILTIN, LOW);
   delay(250);
+
+  pinMode(P10, INPUT_PULLUP);
+  pinMode(P25, INPUT_PULLUP);
+  pinMode(P35, INPUT_PULLUP);
+  pinMode(P50, INPUT_PULLUP);
+  pinMode(P65, INPUT_PULLUP);
+  pinMode(P80, INPUT_PULLUP);
+  pinMode(P100, INPUT_PULLUP);
+
+  delay(25);
   
-  Serial.println("INIT-DONE");
+  Serial.println("TX-UNIT: INIT-DONE..");
 }
 
 //Humidity: 36.00%  Temperature: 34.60°C   Heat index: 35.43°C 60
@@ -96,6 +117,8 @@ long duration;
 int distance;
 int level;
 
+
+
 void loop() {  
 
   h = 0.0;
@@ -106,25 +129,33 @@ void loop() {
     h = h + dht.readHumidity();
     t = t + dht.readTemperature();
 
-    digitalWrite(TRIG, LOW);
-    delayMicroseconds(2);
-    digitalWrite(TRIG, HIGH);
-    delayMicroseconds(10);
-    digitalWrite(TRIG, LOW);
-
-    duration = pulseIn(ECHO, HIGH);
-    distance = duration*0.017;
-
-    level = level + distance;
+    if(sensorEnabled){
+      digitalWrite(TRIG, LOW);
+      delayMicroseconds(2);
+      digitalWrite(TRIG, HIGH);
+      delayMicroseconds(10);
+      digitalWrite(TRIG, LOW);
+  
+      duration = pulseIn(ECHO, HIGH);
+      distance = duration*0.017;
+  
+      level = level + distance;
+    }else{
+      //level = level + levelPolling();
+    }
   
     delay(INTERVAL);    
   }
 
   h = h/AVG_COUNT;
   t = t/AVG_COUNT;
-  level = level/AVG_COUNT;
-  level = 100-((level-MIN_VAL)*STEP);
-
+  //level = level/AVG_COUNT;
+  
+  //if(sensorEnabled){
+    //level = 100-((level-MIN_VAL)*STEP);
+  //}
+  level = levelPolling();
+  
   hic = dht.computeHeatIndex(t, h, false);
   
   String packet = "";
@@ -137,7 +168,7 @@ void loop() {
   String index = String(hic,1);
   packet.concat(index);
   //packet.concat("'C ");
-  packet.concat(" ~");
+  packet.concat(" ");
   packet.concat(level);
   packet.concat("%");
   
@@ -159,7 +190,7 @@ void loop() {
   }
 
   //Serial.println(packet);
-  Serial.println(arr);
+  Serial.println(packet);                                                                                                                                                  
   driver.send((uint8_t *)arr, 20);
   
   //sprintf(buff,"%s %dcm",temp,level);
@@ -168,4 +199,24 @@ void loop() {
   driver.waitPacketSent();
   
   delay(PACKET_INTERVAL);
+}
+
+int levelPolling(){
+  if(digitalRead(P100)==LOW){
+    return 100;
+  }else if(digitalRead(P80)==LOW){
+    return 80;
+  }else if(digitalRead(P65)==LOW){
+    return 65;
+  }else if(digitalRead(P50)==LOW){
+    return 50;
+  }else if(digitalRead(P35)==LOW){
+    return 35;
+  }else if(digitalRead(P25)==LOW){
+    return 25;
+  }else if(digitalRead(P10)==LOW){
+    return 10;
+  }else{
+    return -1;
+  }
 }
