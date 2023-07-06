@@ -121,9 +121,10 @@ Adafruit_MQTT_Client mqtt(&client, AIO_SERVER, AIO_SERVERPORT, AIO_USERNAME, AIO
 //follow the form: <username>/feeds/<feedname> for AIO
 Adafruit_MQTT_Publish PUB_TEMP = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/monitoring");
 Adafruit_MQTT_Publish PUB_LEVEL = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/water-level");
+Adafruit_MQTT_Publish PUB_MESSAGE = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/in-message");
 Adafruit_MQTT_Publish PUB_ACK = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/smart-control-command");
 Adafruit_MQTT_Subscribe SUB_COMMAND = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/smart-control-command");
-
+Adafruit_MQTT_Subscribe SUB_MESSAGE = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/message");
 
 // You can specify the time server pool and the offset, (in seconds)
 // additionaly you can specify the update interval (in milliseconds).
@@ -246,6 +247,7 @@ void setup() {
    delay(1200);
   
    mqtt.subscribe(&SUB_COMMAND);
+   mqtt.subscribe(&SUB_MESSAGE);
    delay(500);
    mqttConnected = MQTT_connect();
    delay(50);
@@ -376,10 +378,14 @@ void handleMqttSubscription(){
       boolean isRemoteCommand = false;
       if (subscription == &SUB_COMMAND) {   
         command = (char *)SUB_COMMAND.lastread;
+        Serial.println(("Got: remote command  : "+command));
+        refreshDisplay("CMD:"+command,true); 
+        processCommand(command, true);
+      }else if(subscription == &SUB_MESSAGE){
+        String message = (char *)SUB_MESSAGE.lastread;
+        Serial.println(("Got: remote message  : "+message));
+        handleRemoteMessage(message);
       }
-      Serial.println(("Got: remote command  : "+command));
-      refreshDisplay("CMD:"+command,true); 
-      processCommand(command, true);
     }    
   }
 }
@@ -448,7 +454,8 @@ void publishTemp(){
       } else {
         Serial.println("Pub temp in OK");
       }
-    }else{
+    }
+    else{
       if (!(String(outTemp).equals("NAN"))){
         if(!PUB_TEMP.publish(String(outTemp).c_str())){
           Serial.println("Pub Temp Failed!");
@@ -460,9 +467,21 @@ void publishTemp(){
   }
 }
 void publishLevel(String message){
-  if(mqttConnected){
+  /*if(mqttConnected){
       if (!PUB_LEVEL.publish(message.c_str())) {
         Serial.println("Pub Level Failed!");
+      } else {
+        //Serial.println("OK");
+      }
+  }*/
+}
+void publishMessage(){
+  String message = "";
+  message+="Temp: ";
+  message+=String(inTemp);
+  if(mqttConnected){
+      if (!PUB_MESSAGE.publish(message.c_str())) {
+        Serial.println("Pub Message Failed!");
       } else {
         //Serial.println("OK");
       }
@@ -587,7 +606,7 @@ void updateLedBar(int val){
   if(!buzzState && val>=cutOffLevel && buzzerFlag){
     digitalWrite(RELBUZZ,ON);
   }
-  publishLevel(String(val));   
+  //publishLevel(String(val));   
 }
 
 
@@ -605,6 +624,59 @@ void readTemp(){
   Serial.println(inTemp);
 }
 
+void handleRemoteMessage(String message){
+  String temp = "";
+  String hum = "";
+  String idx = "";
+  String lev = "";
+
+  boolean isTemp = true;
+  boolean isHum = false;
+  boolean isIdx = false;
+  boolean isLev = false;
+  
+  for(int i = 0; i<message.length(); i++){
+    char ch = message.charAt(i);
+    if(isTemp && ch=='\''){
+      isTemp = false;
+      isHum = true;
+      i+=2;
+      continue;
+    }else if(isHum && ch == '%'){
+      isHum = false;
+      isIdx = true;
+      i+=1;
+      continue;
+    }else if(isIdx && ch == '\''){
+      isIdx = false;
+      isLev = true;
+      i+=2;
+      continue;
+    }else if(isLev && ch == '%'){
+      isLev = false;
+      break;
+    }
+    
+    if(isTemp)
+      temp+=ch;
+    else if(isHum)  
+      hum+=ch;
+    else if(isIdx)
+      idx+=ch;
+    else if(isLev)
+      lev+=ch; 
+  }
+  Serial.println("Temp="+temp);
+  Serial.println("Humidity="+hum);
+  Serial.println("Temp Index="+idx);
+  Serial.println("Level="+lev);
+  strTx = message;
+  currentLevel=lev.toInt();
+  outTemp=temp.toInt();
+  updateLedBar(currentLevel);
+  refreshDisplay("",false);
+}
+
 void handleSerialEvent(){
   //Format= "tt'C hh% ii ll%" -> len = 16 "25'C 15% 22 72%"
   String temp = "";
@@ -619,21 +691,22 @@ void handleSerialEvent(){
   
   for(int i = 0; i<serialData.length(); i++){
     char ch = serialData.charAt(i);
-    if(ch=='\''){
+    if(isTemp && ch=='\''){
       isTemp = false;
       isHum = true;
       i+=2;
       continue;
-    }else if(ch == '%'){
+    }else if(isHum && ch == '%'){
       isHum =false;
       isIdx = true;
       i+=1;
       continue;
-    }else if(ch == ' '){
+    }else if(isIdx && ch == '\''){
       isIdx = false;
       isLev = true;
+      i+=2;
       continue;
-    }else if(ch == '%'){
+    }else if(isLev && ch == '%'){
       isLev = false;
       break;
     }
@@ -691,7 +764,8 @@ void routine(){
 
       readTemp();
       updateTemp();
-      publishTemp();
+      //publishTemp();
+      publishMessage();
     }
     if(tickCount%10==0){
       //each 10 seconds
@@ -760,14 +834,15 @@ void buttonPolling(){
 
 void loop() {    
   routine();
-  if(serialEventFlag){
+  /*if(serialEventFlag){
     handleSerialEvent();
     serialData = "";
     serialEventFlag = false;
-  }
+  }*/
   buttonPolling();
 }
 
+/*
 void serialEvent() {
     while (Serial.available()) {
       // get the new byte:
@@ -781,4 +856,4 @@ void serialEvent() {
       }
     }
 
-}
+}*/
