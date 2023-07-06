@@ -159,7 +159,7 @@ void loop() {
   }
 
   //Serial.println(packet);
-  Serial.println(arr);
+  Serial.println(packet);
   driver.send((uint8_t *)arr, 20);
   
   //sprintf(buff,"%s %dcm",temp,level);
