@@ -834,15 +834,15 @@ void buttonPolling(){
 
 void loop() {    
   routine();
-  /*if(serialEventFlag){
+  if(serialEventFlag){
     handleSerialEvent();
     serialData = "";
     serialEventFlag = false;
-  }*/
+  }
   buttonPolling();
 }
 
-/*
+
 void serialEvent() {
     while (Serial.available()) {
       // get the new byte:
@@ -856,4 +856,4 @@ void serialEvent() {
       }
     }
 
-}*/
+}
