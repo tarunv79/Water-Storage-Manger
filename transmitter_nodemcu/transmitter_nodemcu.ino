@@ -57,7 +57,6 @@
 #define TX 1 GPIO1
 */
 
-
 #define P10 16
 #define P25 5 
 #define P35 4  
@@ -85,10 +84,10 @@ Ticker timeTicker;
 
 void setup() {
   Serial.begin(9600);
-  delay(100);
-  Serial.println("TX-UNIT: Starting...");
+  delay(250);
+  Serial.println("TX-UNIT: Starting..");
   dht.begin();
-
+ 
   digitalWrite(LED_BUILTIN, HIGH);
   delay(250);
   digitalWrite(LED_BUILTIN, LOW);
@@ -110,7 +109,8 @@ void setup() {
   pinMode(P75, INPUT_PULLUP);
   pinMode(P85, INPUT_PULLUP);
   pinMode(P100, INPUT_PULLUP);
-  
+
+
   delay(25);
 
   connectWifi();
